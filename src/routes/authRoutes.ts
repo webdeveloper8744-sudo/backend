@@ -1,21 +1,25 @@
-import express from "express";
-import { register, login } from "../controllers/authController";
-import { createUser } from "../controllers/userController"; // Add this import
-import { authMiddleware, requireRole } from "../middlewares/auth";
-import { upload } from "../middlewares/upload";
+import express from "express"
+import { register, login, forgotPassword, verifyResetCode, resetPassword } from "../controllers/authController"
+import { createUser } from "../controllers/userController"
+import { authMiddleware, requireRole } from "../middlewares/auth"
+import { upload } from "../middlewares/upload"
 
-const router = express.Router();
+const router = express.Router()
 
 // Public routes
-router.post("/register", upload.single('image'), register);
-router.post("/login", login);
+router.post("/register", upload.single("image"), register)
+router.post("/login", login)
+
+router.post("/forgot-password", forgotPassword)
+router.post("/verify-reset-code", verifyResetCode)
+router.post("/reset-password", resetPassword)
 
 // Protected - only admin can add users
-router.post("/add-user", authMiddleware, requireRole("admin"), upload.single('image'), createUser);
+router.post("/add-user", authMiddleware, requireRole("admin"), upload.single("image"), createUser)
 
 // Dashboard route...
 router.get("/dashboard", authMiddleware, (req, res) => {
-  const user = (req as any).user;
+  const user = (req as any).user
   res.json({
     message: "Welcome to CRM Dashboard",
     user,
@@ -23,9 +27,9 @@ router.get("/dashboard", authMiddleware, (req, res) => {
       canManageUsers: user.role === "admin",
       canViewReports: user.role === "admin" || user.role === "manager",
       canEditProfile: user.role !== "guest",
-      canViewDashboard: true
-    }
-  });
-});
+      canViewDashboard: true,
+    },
+  })
+})
 
-export default router;
+export default router
