@@ -95,6 +95,15 @@ export class Leads {
   @Column({ type: "text", nullable: true })
   clientImageUrl?: string
 
+  @Column({ type: "varchar", length: 50, nullable: true })
+  referredByType?: "fresh" | "existing" | "other"
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  referredBy?: string
+
+  @Column({ type: "varchar", length: 36, nullable: true })
+  referredByClientId?: string
+
   // Step 3 - Billing
   @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
   quotedPrice!: number
@@ -104,9 +113,6 @@ export class Leads {
 
   @Column({ type: "text" })
   companyNameAddress!: string
-
-  @Column({ nullable: true })
-  referenceBy?: string
 
   @Column({ type: "varchar", default: "pending" })
   paymentStatus!: PaymentStatus
@@ -129,8 +135,17 @@ export class Leads {
   @Column({ type: "text", nullable: true })
   billDocUrl?: string
 
+  @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
+  discountAmount!: number
+
+  @Column({ type: "varchar", length: 50, default: "amount", nullable: true })
+  discountType?: "amount" | "percentage"
+
+  @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
+  discountedPrice!: number
+
   @Column({ type: "varchar", default: "new" })
-  assignmentStatus!: string // Added assignment status field for tracking lead progress
+  assignmentStatus!: string
 
   @CreateDateColumn()
   createdAt!: Date

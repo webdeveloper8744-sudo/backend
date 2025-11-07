@@ -6,6 +6,12 @@ import { deleteFromCloudinary, extractPublicId, getResourceType } from "../confi
 
 const repo = () => AppDataSource.getRepository(Leads)
 
+// Helper to ensure single entity is returned from save operation
+const saveEntity = async (entity: Leads) => {
+  const result = await repo().save(entity)
+  return Array.isArray(result) ? result[0] : result
+}
+
 async function unlinkIfExists(cloudinaryUrl?: string) {
   if (!cloudinaryUrl) return
   const publicId = extractPublicId(cloudinaryUrl)
@@ -15,15 +21,70 @@ async function unlinkIfExists(cloudinaryUrl?: string) {
   }
 }
 
+function calculateDiscountedPrice(quotedPrice: number, discountAmount: number, discountType?: string): number {
+  if (!discountAmount || discountAmount <= 0) return quotedPrice
+
+  let finalPrice = quotedPrice
+  if (discountType === "percentage") {
+    const discountPercent = discountAmount / 100
+    finalPrice = quotedPrice - quotedPrice * discountPercent
+  } else {
+    finalPrice = quotedPrice - discountAmount
+  }
+
+  return Math.max(0, finalPrice)
+}
+
+function processReferralData(body: any) {
+  let referredByType: string | null = null
+  let referredBy: string | null = null
+  let referredByClientId: string | null = null
+
+  if (body.referredByType === "existing" && body.referredByClientId) {
+    referredByType = "existing"
+    referredByClientId = body.referredByClientId
+    referredBy = body.referredByClientName || null
+  } else if (body.referredByType === "other" && body.referredByOtherName) {
+    referredByType = "other"
+    referredBy = body.referredByOtherName
+    referredByClientId = null
+  } else if (body.referredByType === "fresh") {
+    referredByType = "fresh"
+    referredBy = null
+    referredByClientId = null
+  }
+
+  return { referredByType, referredBy, referredByClientId }
+}
+
 export async function listLeads(req: Request, res: Response) {
-  const [leads, total] = await repo().findAndCount({ order: { createdAt: "DESC" } })
-  res.json({ total, leads })
+  try {
+    const [leads, total] = await repo().findAndCount({ order: { createdAt: "DESC" } })
+    res.json({ total, leads })
+  } catch (err: any) {
+    console.error("List leads error:", err)
+    res.status(500).json({ error: "Failed to fetch leads" })
+  }
 }
 
 export async function getLead(req: Request, res: Response) {
-  const lead = await repo().findOne({ where: { id: req.params.id } })
-  if (!lead) return res.status(404).json({ error: "Lead not found" })
-  res.json(lead)
+  try {
+    const lead = await repo().findOne({ where: { id: req.params.id } })
+    if (!lead) return res.status(404).json({ error: "Lead not found" })
+
+    let referredClients: any[] = []
+    if (lead.id) {
+      referredClients = await repo().find({
+        where: { referredByClientId: lead.id },
+        select: ["id", "clientName", "clientCompanyName", "quotedPrice", "discountedPrice"],
+      })
+    }
+
+    res.json({ ...lead, referredClients })
+  } catch (err: any) {
+    console.error("Get lead error:", err)
+    res.status(500).json({ error: "Failed to fetch lead" })
+  }
 }
 
 export async function createLead(req: Request, res: Response) {
@@ -67,7 +128,16 @@ export async function createLead(req: Request, res: Response) {
     }
 
     const files = req.files as Record<string, Express.Multer.File[]>
-    const lead = repo().create({
+
+    const { referredByType, referredBy, referredByClientId } = processReferralData(b)
+
+    const quotedPrice = Number(b.quotedPrice ?? 0)
+    const discountAmount = b.discountAmount ? Number(b.discountAmount) : 0
+    const discountType = b.discountType || "amount"
+    const discountedPrice = calculateDiscountedPrice(quotedPrice, discountAmount, discountType)
+
+    const lead = repo().create() as Leads
+    Object.assign(lead, {
       // Step 1
       employeeName: b.employeeName,
       source: b.source,
@@ -97,11 +167,13 @@ export async function createLead(req: Request, res: Response) {
       panPdfUrl: toPublicUrl(files?.panPdf?.[0]),
       optionalPdfUrl: toPublicUrl(files?.optionalPdf?.[0]),
       clientImageUrl: toPublicUrl(files?.clientImage?.[0]),
+      referredByType,
+      referredBy,
+      referredByClientId,
       // Step 3
-      quotedPrice: Number(b.quotedPrice ?? 0),
+      quotedPrice,
       companyName: b.companyName || null,
       companyNameAddress: b.companyNameAddress,
-      referenceBy: b.referenceBy || null,
       paymentStatus: b.paymentStatus || "pending",
       paymentStatusNote: b.paymentStatusNote || null,
       invoiceNumber: b.invoiceNumber || null,
@@ -109,10 +181,13 @@ export async function createLead(req: Request, res: Response) {
       billingSentStatus: b.billingSentStatus || "not_sent",
       billingDate: b.billingDate || null,
       billDocUrl: toPublicUrl(files?.billDoc?.[0]),
-      assignmentStatus: b.assignmentStatus || "new", // Initialize assignment status
+      discountAmount,
+      discountType,
+      discountedPrice,
+      assignmentStatus: b.assignmentStatus || "new",
     })
 
-    const saved = await repo().save(lead)
+    const saved = await saveEntity(lead)
 
     if (saved.assignTeamMember) {
       try {
@@ -131,7 +206,6 @@ export async function createLead(req: Request, res: Response) {
         }
       } catch (notifError) {
         console.error("Failed to create notification:", notifError)
-        // Don't fail the lead creation if notification fails
       }
     }
 
@@ -146,6 +220,7 @@ export async function updateLead(req: Request, res: Response) {
   try {
     const existing = await repo().findOne({ where: { id: req.params.id } })
     if (!existing) return res.status(404).json({ error: "Lead not found" })
+
     const b = req.body
     const files = req.files as Record<string, Express.Multer.File[]>
 
@@ -159,6 +234,17 @@ export async function updateLead(req: Request, res: Response) {
     }
 
     const oldAssignedMember = existing.assignTeamMember
+
+    const referralData = processReferralData(b)
+    const referredByType = referralData.referredByType || existing.referredByType || null
+    const referredBy = referralData.referredBy !== undefined ? referralData.referredBy : existing.referredBy
+    const referredByClientId =
+      referralData.referredByClientId !== undefined ? referralData.referredByClientId : existing.referredByClientId
+
+    const quotedPrice = b.quotedPrice != null ? Number(b.quotedPrice) : existing.quotedPrice
+    const discountAmount = b.discountAmount != null ? Number(b.discountAmount) : existing.discountAmount
+    const discountType = b.discountType || existing.discountType || "amount"
+    const discountedPrice = calculateDiscountedPrice(quotedPrice, discountAmount, discountType)
 
     // Update scalar fields if present
     Object.assign(existing, {
@@ -187,19 +273,23 @@ export async function updateLead(req: Request, res: Response) {
       downloadStatus: b.downloadStatus ?? existing.downloadStatus,
       processedBy: b.processedBy ?? existing.processedBy,
       processedAt: b.processedAt ?? existing.processedAt,
+      referredByType,
+      referredBy,
+      referredByClientId,
       // Step 3
-      quotedPrice: b.quotedPrice != null ? Number(b.quotedPrice) : existing.quotedPrice,
+      quotedPrice,
       companyName: b.companyName ?? existing.companyName,
       companyNameAddress: b.companyNameAddress ?? existing.companyNameAddress,
-      referenceBy: b.referenceBy ?? existing.referenceBy,
       paymentStatus: b.paymentStatus ?? existing.paymentStatus,
       paymentStatusNote: b.paymentStatusNote ?? existing.paymentStatusNote,
       invoiceNumber: b.invoiceNumber ?? existing.invoiceNumber,
       invoiceDate: b.invoiceDate ?? existing.invoiceDate,
       billingSentStatus: b.billingSentStatus ?? existing.billingSentStatus,
       billingDate: b.billingDate ?? existing.billingDate,
-      billDocUrl: b.billDocUrl ?? existing.billDocUrl,
-      assignmentStatus: b.assignmentStatus ?? existing.assignmentStatus, // Allow updating assignment status
+      discountAmount,
+      discountType,
+      discountedPrice,
+      assignmentStatus: b.assignmentStatus ?? existing.assignmentStatus,
     })
 
     const setFile = async (field: keyof Leads, f?: Express.Multer.File) => {
@@ -243,6 +333,25 @@ export async function updateLead(req: Request, res: Response) {
   }
 }
 
+export async function deleteLead(req: Request, res: Response) {
+  try {
+    const lead = await repo().findOne({ where: { id: req.params.id } })
+    if (!lead) return res.status(404).json({ error: "Lead not found" })
+
+    await unlinkIfExists(lead.aadhaarPdfUrl)
+    await unlinkIfExists(lead.panPdfUrl)
+    await unlinkIfExists(lead.optionalPdfUrl)
+    await unlinkIfExists(lead.clientImageUrl)
+    await unlinkIfExists(lead.billDocUrl)
+
+    await repo().remove(lead)
+    res.json({ message: "Lead deleted successfully", id: req.params.id })
+  } catch (err: any) {
+    console.error("Delete lead error:", err)
+    res.status(500).json({ error: "Failed to delete lead" })
+  }
+}
+
 export async function updateLeadAssignmentStatus(req: Request, res: Response) {
   try {
     const { id } = req.params
@@ -277,13 +386,11 @@ export async function getAssignedLeads(req: Request, res: Response) {
 
     let leads: Leads[]
 
-    // If admin or manager, get all leads
     if (role === "admin" || role === "manager") {
       leads = await repo().find({
         order: { createdAt: "DESC" },
       })
     } else {
-      // If employee, get only their assigned leads
       const userRepo = AppDataSource.getRepository("User")
       const user = await userRepo.findOne({ where: { id: userId as string } })
 
@@ -301,25 +408,6 @@ export async function getAssignedLeads(req: Request, res: Response) {
   } catch (err: any) {
     console.error("Get assigned leads error:", err)
     res.status(500).json({ error: "Failed to fetch assigned leads" })
-  }
-}
-
-export async function deleteLead(req: Request, res: Response) {
-  try {
-    const lead = await repo().findOne({ where: { id: req.params.id } })
-    if (!lead) return res.status(404).json({ error: "Lead not found" })
-
-    await unlinkIfExists(lead.aadhaarPdfUrl)
-    await unlinkIfExists(lead.panPdfUrl)
-    await unlinkIfExists(lead.optionalPdfUrl)
-    await unlinkIfExists(lead.clientImageUrl)
-    await unlinkIfExists(lead.billDocUrl)
-
-    await repo().remove(lead)
-    res.json({ message: "Lead deleted", id: req.params.id })
-  } catch (err: any) {
-    console.error("Delete lead error:", err)
-    res.status(500).json({ error: "Failed to delete lead" })
   }
 }
 
@@ -384,7 +472,7 @@ export async function bulkUploadLeads(req: Request, res: Response) {
 
         if (missingFields.length > 0) {
           results.failed.push({
-            row: i + 2, // +2 because row 1 is header, array is 0-indexed
+            row: i + 2,
             clientName: leadData.clientName || "Unknown",
             error: `Missing required fields: ${missingFields.join(", ")}`,
           })
@@ -477,9 +565,7 @@ export async function bulkUploadLeads(req: Request, res: Response) {
           continue
         }
 
-        // Create lead with optional document URLs
         const lead = repo().create({
-          // Step 1
           employeeName: leadData.employeeName,
           source: leadData.source,
           otherSource: leadData.otherSource || null,
@@ -489,7 +575,6 @@ export async function bulkUploadLeads(req: Request, res: Response) {
           stage: leadData.stage,
           comment: leadData.comment || null,
           remarks: leadData.remarks || null,
-          // Step 2
           clientName: leadData.clientName,
           clientCompanyName: leadData.clientCompanyName,
           productName: leadData.productName,
@@ -508,11 +593,9 @@ export async function bulkUploadLeads(req: Request, res: Response) {
           panPdfUrl: leadData.panPdfUrl || null,
           optionalPdfUrl: leadData.optionalPdfUrl || null,
           clientImageUrl: leadData.clientImageUrl || null,
-          // Step 3
           quotedPrice: Number(leadData.quotedPrice ?? 0),
           companyName: leadData.companyName || null,
           companyNameAddress: leadData.companyNameAddress,
-          referenceBy: leadData.referenceBy || null,
           paymentStatus: leadData.paymentStatus,
           paymentStatusNote: leadData.paymentStatusNote || null,
           invoiceNumber: leadData.invoiceNumber || null,
@@ -527,7 +610,6 @@ export async function bulkUploadLeads(req: Request, res: Response) {
 
         existingOrderIds.add(saved.orderId)
 
-        // Create notification for assigned team member
         if (saved.assignTeamMember) {
           try {
             const assignedUser = await userRepo.findOne({
