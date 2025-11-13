@@ -8,6 +8,7 @@ import productRoutes from "./routes/productRoutes"
 import leadRoutes from "./routes/leadRoutes"
 import leadAssignmentRoutes from "./routes/leadAssignmentRoutes"
 import notificationRoutes from "./routes/notificationRoutes"
+import storeRoute from "./routes/storeRoute"
 
 dotenv.config()
 const app = express()
@@ -28,6 +29,7 @@ app.use(express.json())
 app.use("/auth", authRoutes)
 app.use("/users", userRoutes)
 app.use("/products", productRoutes)
+app.use("/store", storeRoute)
 app.use("/leads", leadRoutes)
 app.use("/lead-assignments", leadAssignmentRoutes) // Added lead assignment routes
 app.use("/notifications", notificationRoutes) // Added notification routes

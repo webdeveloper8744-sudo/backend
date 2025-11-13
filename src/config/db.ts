@@ -8,6 +8,7 @@ import { LeadAssignment } from "../models/LeadAssignment"
 import { LeadAssignmentHistory } from "../models/LeadAssignmentHistory"
 import { LeadNotification } from "../models/LeadNotification"
 import { PasswordReset } from "../models/PasswordReset"
+import { store } from "../models/store.model"
 
 dotenv.config()
 
@@ -21,7 +22,7 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD,
   database: DB_NAME,
   synchronize: true, // auto-create tables
-  entities: [User, Product, Leads, LeadAssignment, LeadAssignmentHistory, LeadNotification, PasswordReset],
+  entities: [User, Product, Leads, LeadAssignment, LeadAssignmentHistory, LeadNotification, PasswordReset, store],
 })
 
 export async function initializeDatabase() {
