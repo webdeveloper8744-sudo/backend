@@ -10,7 +10,6 @@ export type BillingSentStatus = "sent" | "not_sent" | "process"
 export class Leads {
   @PrimaryGeneratedColumn("uuid")
   id!: string
-
   // Step 1 - Employee
   @Column()
   employeeName!: string
