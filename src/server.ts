@@ -26,12 +26,12 @@ app.use(express.json())
 // app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
-app.use("/auth", authRoutes)
-app.use("/users", userRoutes)
-app.use("/products", productRoutes)
-app.use("/store", storeRoute)
-app.use("/leads", leadRoutes)
-app.use("/lead-assignments", leadAssignmentRoutes) // Added lead assignment routes
+app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
+app.use("/products", productRoutes);
+app.use("/store", storeRoute);
+app.use("/leads", leadRoutes);
+app.use("/lead-assignments", leadAssignmentRoutes);
 app.use("/notifications", notificationRoutes) // Added notification routes
 
 app.get("/", (req, res) => res.send("CRM API Running with Cloudinary"))
