@@ -1,45 +1,33 @@
 import type { Request, Response } from "express"
 import { AppDataSource } from "../config/db"
 import { store } from "../models/store.model"
+// import { PurchaseOrder } from "../models/purchase_order.model"
+import { PurchaseOrder } from "../models/PurchaseOrder"
 
 // Get all stores
 export async function getAllStore(req: Request, res: Response) {
     try {
+        console.log("[v0] getAllStore called")
         const storeRepository = AppDataSource.getRepository(store)
-        const stores = await storeRepository.find()
+        const stores = await storeRepository.find({
+            order: {
+                createdAt: "DESC"
+            }
+        })
+        console.log("[v0] Found stores:", stores.length)
         res.json({ stores, total: stores.length });
     } catch (error: any) {
-        console.error("Get stores error or data not found:", error);
-        res.status(500).json({ error: "Failed to fetch stores" });
+        console.error("[v0] Get stores error:", error);
+        res.status(500).json({ error: "Failed to fetch stores", details: error.message });
     }
 }
-
-
-// // Get single product by ID
-// export async function getProductById(req: Request, res: Response) {
-//   try {
-//     const { id } = req.params
-
-//     const product = await repo().findOne({ where: { id } })
-
-//     if (!product) {
-//       return res.status(404).json({ error: "Product not found" })
-//     }
-
-//     res.json(product)
-//   } catch (error: any) {
-//     console.error("Get product error:", error)
-//     res.status(500).json({ error: "Failed to fetch product" })
-//   }
-// }
-
 
 // Create new store
 export async function createStore(req: Request, res: Response) {
     try {
         const { name, description } = req.body
 
-        console.log("Create store request received:", { name, description });
+        console.log("[v0] Create store request:", { name, description });
 
         // Validation
         if (!name || !description) {
@@ -55,39 +43,28 @@ export async function createStore(req: Request, res: Response) {
 
         const savedStore = await storeRepository.save(newStore)
 
+        console.log("[v0] Store created successfully:", savedStore.id)
         res.status(201).json({
             message: "Store created successfully",
             store: savedStore,
         })
     } catch (error: any) {
-        console.error("Create Store error:", error);
-        res.status(500).json({ error: "Failed to create Store" });
+        console.error("[v0] Create store error:", error);
+        res.status(500).json({ error: "Failed to create store", details: error.message });
     }
 }
 
-// Update product
+// Update store
 export async function updateStore(req: Request, res: Response) {
   try {
     const { id } = req.params
     const { name, description } = req.body
 
-    console.log("Update store request received:", { id, name, description })
-    console.log(
-      "File received:",
-      req.file
-        ? {
-            filename: req.file.filename,
-            path: req.file.path,
-            size: req.file.size,
-            mimetype: req.file.mimetype,
-          }
-        : "No file",
-    )
+    console.log("[v0] Update store request:", { id, name, description })
 
-    // const store = await repo().findOne({ where: { id } })
     const storeRepository = AppDataSource.getRepository(store)
-
     const storeToUpdate = await storeRepository.findOne({ where: { id } })
+    
     if (!storeToUpdate) {
       return res.status(404).json({ error: "Store not found" })
     }
@@ -96,12 +73,13 @@ export async function updateStore(req: Request, res: Response) {
     if (name) storeToUpdate.name = name
     if (description) storeToUpdate.description = description
 
-    await storeRepository.save(storeToUpdate)
+    const updatedStore = await storeRepository.save(storeToUpdate)
 
-    res.json({ message: "Store updated successfully", store: storeToUpdate })
+    console.log("[v0] Store updated successfully:", id)
+    res.json({ message: "Store updated successfully", store: updatedStore })
   } catch (error: any) {
-    console.error("Update store error:", error)
-    res.status(500).json({ error: "Failed to update store" })
+    console.error("[v0] Update store error:", error)
+    res.status(500).json({ error: "Failed to update store", details: error.message })
   }
 }
 
@@ -116,10 +94,23 @@ export async function deleteStore(req: Request, res: Response) {
       return res.status(404).json({ error: "Store not found" })
     }
 
+    // Check for related purchase orders before deleting
+    const purchaseOrderRepository = AppDataSource.getRepository(PurchaseOrder)
+    const relatedOrdersCount = await purchaseOrderRepository.count({ where: { store: { id } } })
+
+    if (relatedOrdersCount > 0) {
+      return res.status(409).json({
+        error: "Cannot delete store",
+        details: `This store has ${relatedOrdersCount} associated purchase order(s) and cannot be deleted.`,
+        code: "STORE_HAS_DEPENDENCIES",
+      })
+    }
+
     await storeRepository.remove(storeToDelete)
+    console.log("[v0] Store deleted successfully:", id)
     res.json({ message: "Store deleted successfully", storeId: id })
   } catch (error: any) {
-    console.error("Delete store error:", error)
-    res.status(500).json({ error: "Failed to delete store" })
+    console.error("[v0] Delete store error:", error)
+    res.status(500).json({ error: "Failed to delete store", details: error.message })
   }
 }

@@ -119,6 +119,7 @@ export async function createLead(req: Request, res: Response) {
       "processedAt",
       "quotedPrice",
       "companyNameAddress",
+      "paymentStatus",
       "billingSentStatus",
     ]
     for (const k of required) {
@@ -170,6 +171,9 @@ export async function createLead(req: Request, res: Response) {
       referredByType,
       referredBy,
       referredByClientId,
+      mTokenOption: b.mTokenOption || "without",
+      mTokenSerialNumber: b.mTokenSerialNumber || null,
+      mTokenStoreFilter: b.mTokenStoreFilter || null,
       // Step 3
       quotedPrice,
       companyName: b.companyName || null,
@@ -188,6 +192,7 @@ export async function createLead(req: Request, res: Response) {
     })
 
     const saved = await saveEntity(lead)
+    console.log("[v0] Lead created and saved to database:", saved.id, "with mToken option:", saved.mTokenOption)
 
     if (saved.assignTeamMember) {
       try {
@@ -276,6 +281,9 @@ export async function updateLead(req: Request, res: Response) {
       referredByType,
       referredBy,
       referredByClientId,
+      mTokenOption: b.mTokenOption ?? existing.mTokenOption,
+      mTokenSerialNumber: b.mTokenSerialNumber ?? existing.mTokenSerialNumber,
+      mTokenStoreFilter: b.mTokenStoreFilter ?? existing.mTokenStoreFilter,
       // Step 3
       quotedPrice,
       companyName: b.companyName ?? existing.companyName,
@@ -305,6 +313,7 @@ export async function updateLead(req: Request, res: Response) {
     await setFile("billDocUrl", files?.billDoc?.[0])
 
     const saved = await repo().save(existing)
+    console.log("[v0] Lead updated in database:", saved.id, "with mToken option:", saved.mTokenOption)
 
     if (saved.assignTeamMember && saved.assignTeamMember !== oldAssignedMember) {
       try {
@@ -604,6 +613,9 @@ export async function bulkUploadLeads(req: Request, res: Response) {
           billingDate: leadData.billingDate || null,
           billDocUrl: leadData.billDocUrl || null,
           assignmentStatus: "new",
+          mTokenOption: leadData.mTokenOption || "without",
+          mTokenSerialNumber: leadData.mTokenSerialNumber || null,
+          mTokenStoreFilter: leadData.mTokenStoreFilter || null,
         })
 
         const saved = await repo().save(lead)

@@ -9,6 +9,7 @@ import leadRoutes from "./routes/leadRoutes"
 import leadAssignmentRoutes from "./routes/leadAssignmentRoutes"
 import notificationRoutes from "./routes/notificationRoutes"
 import storeRoute from "./routes/storeRoute"
+import purchaseOrderRoutes from "./routes/purchaseOrderRoutes"
 
 dotenv.config()
 const app = express()
@@ -33,6 +34,7 @@ app.use("/store", storeRoute);
 app.use("/leads", leadRoutes);
 app.use("/lead-assignments", leadAssignmentRoutes);
 app.use("/notifications", notificationRoutes) // Added notification routes
+app.use("/purchase-orders", purchaseOrderRoutes) // Added purchase order routes
 
 app.get("/", (req, res) => res.send("CRM API Running with Cloudinary"))
 

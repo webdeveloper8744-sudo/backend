@@ -103,6 +103,15 @@ export class Leads {
   @Column({ type: "varchar", length: 36, nullable: true })
   referredByClientId?: string
 
+  @Column({ type: "varchar", nullable: true })
+  mTokenOption?: "with" | "without" // with or without MToken
+
+  @Column({ type: "varchar", nullable: true })
+  mTokenSerialNumber?: string // Serial number if with MToken
+
+  @Column({ type: "varchar", nullable: true })
+  mTokenStoreFilter?: string // Store filter for available list
+
   // Step 3 - Billing
   @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
   quotedPrice!: number
