@@ -13,7 +13,6 @@ function signToken(user: User) {
     expiresIn: "1h",
   })
 }
-
 // Register (first user OR via admin add)
 export async function register(req: Request, res: Response) {
   const { fullName, email, phone, password, role, imageUrl } = req.body
