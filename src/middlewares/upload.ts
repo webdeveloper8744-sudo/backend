@@ -1,24 +1,28 @@
 import multer from "multer"
-import { CloudinaryStorage } from "multer-storage-cloudinary"
-import cloudinary from "../config/cloudinary"
+import path from "path"
+import fs from "fs"
 
-// Configure Cloudinary storage for user images
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    return {
-      folder: "crm/users", // Cloudinary folder
-      allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-      transformation: [{ width: 500, height: 500, crop: "limit" }], // Optional: resize images
-      public_id: `user-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, "../../uploads/users")
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true })
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
     }
+    cb(null, uploadDir)
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `user-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`
+    cb(null, uniqueName)
   },
 })
 
 // File filter - only allow images
 const fileFilter = (req: any, file: any, cb: any) => {
-  console.log("Filtering file:", file.originalname, "mimetype:", file.mimetype)
-
   const allowedTypes = /jpeg|jpg|png|gif|webp/
   const extname = allowedTypes.test(file.originalname.toLowerCase().split(".").pop() || "")
   const mimetype = allowedTypes.test(file.mimetype)

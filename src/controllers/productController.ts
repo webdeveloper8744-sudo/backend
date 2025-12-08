@@ -1,7 +1,7 @@
 import type { Request, Response } from "express"
 import { AppDataSource } from "../config/db"
 import { Product } from "../models/Product"
-import { deleteFromCloudinary, extractPublicId } from "../config/cloudinary"
+import { deleteFromLocalStorage } from "../config/cloudinary"
 
 const repo = () => AppDataSource.getRepository(Product)
 
@@ -66,7 +66,7 @@ export async function createProduct(req: Request, res: Response) {
     product.description = description
 
     if (req.file) {
-      product.imageUrl = req.file.path // Cloudinary URL
+      product.imageUrl = `/uploads/products/${req.file.filename}`
       console.log("Image URL set to:", product.imageUrl)
     }
 
@@ -111,14 +111,10 @@ export async function updateProduct(req: Request, res: Response) {
     if (description) product.description = description
 
     if (req.file) {
-      // Delete old image from Cloudinary if exists
       if (product.imageUrl) {
-        const publicId = extractPublicId(product.imageUrl)
-        if (publicId) {
-          await deleteFromCloudinary(publicId)
-        }
+        await deleteFromLocalStorage(product.imageUrl)
       }
-      product.imageUrl = req.file.path // New Cloudinary URL
+      product.imageUrl = `/uploads/products/${req.file.filename}`
       console.log("New image URL set to:", product.imageUrl)
     }
 
@@ -142,10 +138,7 @@ export async function deleteProduct(req: Request, res: Response) {
     }
 
     if (product.imageUrl) {
-      const publicId = extractPublicId(product.imageUrl)
-      if (publicId) {
-        await deleteFromCloudinary(publicId)
-      }
+      await deleteFromLocalStorage(product.imageUrl)
     }
 
     await repo().remove(product)

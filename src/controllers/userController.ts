@@ -2,7 +2,7 @@ import type { Request, Response } from "express"
 import { AppDataSource } from "../config/db"
 import { User, type UserRole } from "../models/User"
 import bcrypt from "bcryptjs"
-import { deleteFromCloudinary, extractPublicId } from "../config/cloudinary"
+import { deleteFromLocalStorage } from "../config/cloudinary"
 
 const repo = () => AppDataSource.getRepository(User)
 
@@ -46,19 +46,6 @@ export async function createUser(req: Request, res: Response) {
   try {
     const { fullName, email, phone, password, role } = req.body
 
-    console.log("Create user request received:", { fullName, email, phone, role })
-    console.log(
-      "File received:",
-      req.file
-        ? {
-            filename: req.file.filename,
-            path: req.file.path,
-            size: req.file.size,
-            mimetype: req.file.mimetype,
-          }
-        : "No file",
-    )
-
     // Validation
     if (!fullName || !email || !phone || !password) {
       return res.status(400).json({ error: "Full name, email, phone, and password are required" })
@@ -83,8 +70,7 @@ export async function createUser(req: Request, res: Response) {
     user.role = (role as UserRole) || "employee"
 
     if (req.file) {
-      user.imageUrl = req.file.path // Cloudinary URL
-      console.log("Image URL set to:", user.imageUrl)
+      user.imageUrl = `/uploads/users/${req.file.filename}`
     }
 
     await repo().save(user)
@@ -106,19 +92,6 @@ export async function updateUser(req: Request, res: Response) {
     const { id } = req.params
     const { fullName, email, phone, password, role } = req.body
     const currentUser = (req as any).user
-
-    console.log("Update user request received:", { id, fullName, email, phone, role })
-    console.log(
-      "File received:",
-      req.file
-        ? {
-            filename: req.file.filename,
-            path: req.file.path,
-            size: req.file.size,
-            mimetype: req.file.mimetype,
-          }
-        : "No file",
-    )
 
     const user = await repo().findOne({ where: { id } })
     if (!user) {
@@ -148,15 +121,10 @@ export async function updateUser(req: Request, res: Response) {
     if (role) user.role = role as UserRole
 
     if (req.file) {
-      // Delete old image from Cloudinary if exists
       if (user.imageUrl) {
-        const publicId = extractPublicId(user.imageUrl)
-        if (publicId) {
-          await deleteFromCloudinary(publicId)
-        }
+        await deleteFromLocalStorage(user.imageUrl)
       }
-      user.imageUrl = req.file.path // New Cloudinary URL
-      console.log("New image URL set to:", user.imageUrl)
+      user.imageUrl = `/uploads/users/${req.file.filename}`
     }
 
     // Password update logic
@@ -194,10 +162,7 @@ export async function deleteUser(req: Request, res: Response) {
     }
 
     if (user.imageUrl) {
-      const publicId = extractPublicId(user.imageUrl)
-      if (publicId) {
-        await deleteFromCloudinary(publicId)
-      }
+      await deleteFromLocalStorage(user.imageUrl)
     }
 
     await repo().remove(user)

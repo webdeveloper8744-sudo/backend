@@ -1,17 +1,20 @@
 import multer from "multer"
-import { CloudinaryStorage } from "multer-storage-cloudinary"
-import cloudinary from "../config/cloudinary"
+import path from "path"
+import fs from "fs"
 
-// Configure Cloudinary storage for product images
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    return {
-      folder: "crm/products", // Cloudinary folder
-      allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-      transformation: [{ width: 800, height: 800, crop: "limit" }], // Optional: resize images
-      public_id: `product-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
-    }
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, "../../uploads/products")
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true })
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir)
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `product-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`
+    cb(null, uniqueName)
   },
 })
 

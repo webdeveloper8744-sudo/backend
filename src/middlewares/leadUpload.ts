@@ -1,30 +1,29 @@
 import multer from "multer"
-import { CloudinaryStorage } from "multer-storage-cloudinary"
-import cloudinary from "../config/cloudinary"
+import path from "path"
+import fs from "fs"
 import type { Express } from "express"
 
-// Configure Cloudinary storage for lead files
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
+// Ensure upload directories exist
+const docDir = path.join(__dirname, "../../uploads/leads/documents")
+const imgDir = path.join(__dirname, "../../uploads/leads/images")
+
+if (!fs.existsSync(docDir)) {
+  fs.mkdirSync(docDir, { recursive: true })
+}
+if (!fs.existsSync(imgDir)) {
+  fs.mkdirSync(imgDir, { recursive: true })
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Send documents to documents folder, images to images folder
     const isImage = file.fieldname === "clientImage"
-    const isPdf = ["aadhaarPdf", "panPdf", "optionalPdf", "billDoc"].includes(file.fieldname)
-
-    if (isImage) {
-      return {
-        folder: "crm/clients/images",
-        allowed_formats: ["jpg", "jpeg", "png", "webp", "avif"],
-        resource_type: "image",
-        public_id: `${file.fieldname}-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
-      }
-    }
-
-    // For PDFs - use raw resource_type without allowed_formats restriction
-    return {
-      folder: "crm/clients/docs",
-      resource_type: "raw", // 'raw' for PDFs and other documents
-      public_id: `${file.fieldname}-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
-    }
+    const destination = isImage ? imgDir : docDir
+    cb(null, destination)
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${file.fieldname}-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`
+    cb(null, uniqueName)
   },
 })
 
@@ -67,9 +66,9 @@ export const leadUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB each
 })
 
-// Helper to get Cloudinary URL from uploaded file
-export function toPublicUrl(file?: Express.Multer.File & { path?: string }): string | undefined {
+// Helper to get URL from uploaded file
+export function toPublicUrl(file?: Express.Multer.File): string | undefined {
   if (!file) return undefined
-  // Cloudinary provides the full URL in file.path
-  return file.path
+  // Return relative path from uploads folder
+  return `/uploads/leads/${file.fieldname === "clientImage" ? "images" : "documents"}/${file.filename}`
 }

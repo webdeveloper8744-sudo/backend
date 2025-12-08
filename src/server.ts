@@ -1,7 +1,9 @@
 import express from "express"
 import dotenv from "dotenv"
 import cors from "cors"
+import path from "path"
 import { initializeDatabase } from "./config/db"
+import { ensureUploadDirs } from "./config/fileStorage"
 import authRoutes from "./routes/authRoutes"
 import userRoutes from "./routes/userRoutes"
 import productRoutes from "./routes/productRoutes"
@@ -14,6 +16,8 @@ import purchaseOrderRoutes from "./routes/purchaseOrderRoutes"
 dotenv.config()
 const app = express()
 
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")))
+
 // Enable CORS
 app.use(
   cors({
@@ -24,19 +28,17 @@ app.use(
 
 app.use(express.json())
 
-// app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
 // Routes
-app.use("/auth", authRoutes);
-app.use("/users", userRoutes);
-app.use("/products", productRoutes);
-app.use("/store", storeRoute);
-app.use("/leads", leadRoutes);
-app.use("/lead-assignments", leadAssignmentRoutes);
-app.use("/notifications", notificationRoutes) // Added notification routes
-app.use("/purchase-orders", purchaseOrderRoutes) // Added purchase order routes
+app.use("/auth", authRoutes)
+app.use("/users", userRoutes)
+app.use("/products", productRoutes)
+app.use("/store", storeRoute)
+app.use("/leads", leadRoutes)
+app.use("/lead-assignments", leadAssignmentRoutes)
+app.use("/notifications", notificationRoutes)
+app.use("/purchase-orders", purchaseOrderRoutes)
 
-app.get("/", (req, res) => res.send("CRM API Running with Cloudinary"))
+app.get("/", (req, res) => res.send("CRM API Running with Local File Storage"))
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -45,6 +47,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 })
 
 initializeDatabase().then(() => {
+  ensureUploadDirs()
+
   const PORT = process.env.PORT || 3000
   app.listen(PORT, () => console.log(`🚀 Server http://localhost:${PORT}`))
 })

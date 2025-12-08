@@ -1,36 +1,37 @@
-import { v2 as cloudinary } from "cloudinary"
-import dotenv from "dotenv"
+import fs from "fs"
+import path from "path"
 
-dotenv.config()
+export async function deleteFromLocalStorage(filePath?: string): Promise<void> {
+  if (!filePath) return
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-export async function deleteFromCloudinary(publicId: string, resourceType: "image" | "raw" = "image"): Promise<void> {
   try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
-    console.log(`Deleted from Cloudinary (${resourceType}):`, publicId)
+    // Construct full path
+    const fullPath = path.join(__dirname, "../../" + filePath)
+
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath)
+      console.log(`Deleted file from local storage: ${filePath}`)
+    }
   } catch (error) {
-    console.error("Error deleting from Cloudinary:", error)
+    console.error("Error deleting local file:", error)
   }
 }
 
-// Helper to extract public_id from Cloudinary URL
+// Legacy function kept for compatibility - now uses local storage
+export async function deleteFromCloudinary(publicId: string, resourceType: "image" | "raw" = "image"): Promise<void> {
+  // For local storage, we don't use publicId
+  console.log(`[Legacy] Cloudinary deletion called for: ${publicId}`)
+}
+
+// Helper to extract file path from local URL
 export function extractPublicId(url: string): string | null {
   if (!url) return null
-
-  // Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
-  // or for raw: https://res.cloudinary.com/{cloud_name}/raw/upload/v{version}/{public_id}.{format}
-  const matches = url.match(/\/v\d+\/(.+)\.\w+$/)
-  return matches ? matches[1] : null
+  // For local storage, just return the URL as is since it's a file path
+  return url
 }
 
 export function getResourceType(url: string): "image" | "raw" {
-  return url.includes("/raw/") ? "raw" : "image"
+  return url.includes("/images/") ? "image" : "raw"
 }
 
-export default cloudinary
+export default { deleteFromLocalStorage }

@@ -2,7 +2,7 @@ import type { Request, Response, Express } from "express"
 import { AppDataSource } from "../config/db"
 import { Leads } from "../models/Lead"
 import { toPublicUrl } from "../middlewares/leadUpload"
-import { deleteFromCloudinary, extractPublicId, getResourceType } from "../config/cloudinary"
+import { deleteFromLocalStorage } from "../config/cloudinary"
 
 const repo = () => AppDataSource.getRepository(Leads)
 
@@ -12,13 +12,9 @@ const saveEntity = async (entity: Leads) => {
   return Array.isArray(result) ? result[0] : result
 }
 
-async function unlinkIfExists(cloudinaryUrl?: string) {
-  if (!cloudinaryUrl) return
-  const publicId = extractPublicId(cloudinaryUrl)
-  if (publicId) {
-    const resourceType = getResourceType(cloudinaryUrl)
-    await deleteFromCloudinary(publicId, resourceType)
-  }
+async function unlinkIfExists(fileUrl?: string) {
+  if (!fileUrl) return
+  await deleteFromLocalStorage(fileUrl)
 }
 
 function calculateDiscountedPrice(quotedPrice: number, discountAmount: number, discountType?: string): number {
